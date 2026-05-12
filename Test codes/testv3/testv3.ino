@@ -1,4 +1,4 @@
-// work
+// work, tapi bukan dari kode original paper
 
 #include <Wire.h>
 #include "MAX30105.h"
