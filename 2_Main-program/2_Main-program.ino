@@ -8,6 +8,10 @@
 #include <Adafruit_ILI9341.h>
 #include <SPI.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 // ========== PIN SETUP ==========
 #define TFT_CS    15
 #define TFT_RST   4
@@ -26,6 +30,9 @@ const int SCL_PIN = 8;
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 #include "../Model/rf_model.h"
+
+// Instantiate exported model
+rf_model model;
 
 // ---------- CONFIG ----------
 const uint16_t FS = 100;
@@ -440,8 +447,8 @@ void classify_stress(double rmssd, double sdnn, double bpm, double computationTi
     features[1] = (float)sdnn;
     features[2] = (float)bpm;
     
-    // Panggil fungsi predict dari rf_new2.h
-    stress_class = predict(features);
+    // Use the exported Random Forest model instance
+    stress_class = model.predict(features);
     
     Serial.println("\n╔════════════════════════════════════════════╗");
     Serial.println("║ STRESS LEVEL CLASSIFICATION ║");
