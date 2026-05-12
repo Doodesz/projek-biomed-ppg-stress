@@ -3,15 +3,30 @@
 #include <MAX30105.h>
 #include <math.h>
 #include <string.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ILI9341.h>
+#include <SPI.h>
 
 #ifndef M_PI
 #define M_PI 3.14f
 #endif
 
+// ========== PIN SETUP ==========
+#define TFT_CS    15
+#define TFT_RST   4
+#define TFT_DC    16
+#define TFT_MOSI  17
+#define TFT_SCLK  18
+
+// ========== BUZZER PIN SETUP ==========
+#define BUZZER_PIN 5
+
 // ========== I2C PIN SETUP(MAX30102) ==========
-// ESP32 (esp32:esp32:esp32): use GPIO21/22 for I2C. GPIO6-11 are tied to SPI flash.
-const int SDA_PIN = 21;
-const int SCL_PIN = 22;
+const int SDA_PIN = 9;
+const int SCL_PIN = 8;
+
+// ========== TFT Display ==========
+Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 #include "../Model/rf_model.h"
 
@@ -58,6 +73,17 @@ const uint16_t MAX_FUND_CAND = 16;
 #endif
 
 const char* STRESS_LABELS[N_CLASSES] = {"Stres Rendah", "Stres Sedang", "Stres Tinggi"};
+
+// ========== LCD DISPLAY STATE ==========
+bool displayInitialized = false;
+unsigned long lastDisplayUpdate = 0;
+const unsigned long DISPLAY_UPDATE_INTERVAL = 4000;
+
+double lastBPM = -1;
+double lastRMSSD = -1;
+double lastSDNN = -1;
+int lastStressClass = -1;
+double lastCompTime = -1;
 
 // ---------- GLOBAL BUFFERS ----------
 static float ringBuffer[MAX_RING];
@@ -107,6 +133,13 @@ public:
         return y;
     }
 };
+
+// ========== BUZZER FUNCTIONS ==========
+void initBuzzer() {
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, HIGH);
+    Serial.println("✓ Buzzer initialized on pin " + String(BUZZER_PIN));
+}
 
 // ---------- Utilities ----------
 float compute_mean(const float *x, int N) {
@@ -206,6 +239,178 @@ bool ssa_reconstruct_hankel_svd(const float* x, int N, int L, int ncomp, float* 
     return true;
 }
 
+// ========== TFT Display ==========
+void initDisplayLayout() {
+    if (displayInitialized) return;
+
+    tft.fillScreen(ILI9341_BLACK);
+    tft.fillRoundRect(5, 5, 310, 35, 6, 0x0208);
+    tft.setTextSize(2);
+    tft.setTextColor(ILI9341_CYAN);
+    tft.setCursor(35, 14);
+    tft.print("STRESS MONITOR");
+    
+    tft.drawFastVLine(160, 50, 190, 0x4208);
+    
+    tft.fillRoundRect(10, 55, 140, 55, 5, 0x2104);
+    tft.setTextSize(1);
+    tft.setTextColor(ILI9341_LIGHTGREY);
+    tft.setCursor(15, 60);
+    tft.print("HEART RATE");
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setCursor(110, 95);
+    tft.print("BPM");
+
+    tft.fillRoundRect(10, 118, 140, 55, 5, 0x2104);
+    tft.setTextColor(ILI9341_LIGHTGREY);
+    tft.setCursor(15, 123);
+    tft.print("RMSSD");
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setCursor(115, 158);
+    tft.print("ms");
+    
+    tft.fillRoundRect(10, 181, 140, 55, 5, 0x2104);
+    tft.setTextColor(ILI9341_LIGHTGREY);
+    tft.setCursor(15, 186);
+    tft.print("SDNN");
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setCursor(115, 221);
+    tft.print("ms");
+    
+    tft.fillRoundRect(170, 55, 140, 181, 5, 0x2104);
+    tft.setTextSize(1);
+    tft.setTextColor(ILI9341_LIGHTGREY);
+    tft.setCursor(175, 60);
+    tft.print("TINGKAT STRESS");
+
+    tft.drawFastHLine(175, 195, 130, 0x4208);
+    tft.setCursor(175, 205);
+    tft.print("COMPUTATION TIME");
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setCursor(285, 221);
+    tft.setTextSize(1);
+    tft.print("ms");
+    
+    displayInitialized = true;
+}
+
+void clearValueArea(int16_t x, int16_t y, int16_t w, int16_t h) {
+    tft.fillRect(x, y, w, h, 0x2104);
+}
+
+void updateBPM(double bpm) {
+    if (fabs(bpm - lastBPM) < 0.5 && lastBPM > 0) return;
+    
+    clearValueArea(15, 75, 130, 25);
+    tft.setTextSize(3);
+    tft.setCursor(20, 78);
+    
+    if (isfinite(bpm) && bpm > 0) {
+        tft.setTextColor(ILI9341_GREEN);
+        tft.printf("%.0f", bpm);
+    } else {
+        tft.setTextColor(ILI9341_RED);
+        tft.print("---");
+    }
+
+    lastBPM = bpm;
+}
+
+void updateRMSSD(double rmssd) {
+    if (fabs(rmssd - lastRMSSD) < 0.5 && lastRMSSD > 0) return;
+
+    clearValueArea(15, 138, 130, 25);
+    tft.setTextSize(2);
+    tft.setCursor(20, 141);
+    
+    if (isfinite(rmssd)) {
+        tft.setTextColor(ILI9341_YELLOW);
+        tft.printf("%.1f", rmssd);
+    } else {
+        tft.setTextColor(ILI9341_RED);
+        tft.print("---");
+    }
+
+    lastRMSSD = rmssd;
+}
+void updateSDNN(double sdnn) {
+    if (fabs(sdnn - lastSDNN) < 0.5 && lastSDNN > 0) return;
+    
+    clearValueArea(15, 201, 130, 25);
+    tft.setTextSize(2);
+    tft.setCursor(20, 204);
+    
+    if (isfinite(sdnn)) {
+        tft.setTextColor(ILI9341_YELLOW);
+        tft.printf("%.1f", sdnn);
+    } else {
+        tft.setTextColor(ILI9341_RED);
+        tft.print("---");
+    }
+
+    lastSDNN = sdnn;
+}
+
+void updateStressClassification(int stress_class) {
+    if (stress_class == lastStressClass) return;
+
+    clearValueArea(175, 80, 130, 140);
+    
+    uint16_t color;
+    const char* label;
+    
+    if (stress_class == 0) {
+        color = ILI9341_GREEN;
+        label = "RENDAH";
+    } else if (stress_class == 1) {
+        color = ILI9341_YELLOW;
+        label = "SEDANG";
+    } else if (stress_class == 2) {
+        color = ILI9341_RED;
+        label = "TINGGI";
+    } else {
+        color = ILI9341_RED;
+        label = "ERROR";
+    }
+
+    tft.setTextSize(3);
+    tft.setTextColor(color);
+    tft.setCursor(180, 130);
+    tft.print(label);
+
+    lastStressClass = stress_class;
+}
+
+void updateComputationTime(double compTime) {
+    if (fabs(compTime - lastCompTime) < 0.5 && lastCompTime > 0) return;
+
+    clearValueArea(175, 220, 105, 20);
+    tft.setTextSize(2);
+    tft.setCursor(180, 221);
+    
+    if (isfinite(compTime)) {
+        tft.setTextColor(ILI9341_CYAN);
+        tft.printf("%.0f", compTime);
+    } else {
+        tft.setTextColor(ILI9341_RED);
+        tft.print("---");
+    }
+
+    lastCompTime = compTime;
+}
+
+void displayOnTFT(double bpm, double rmssd, double sdnn, int stress_class, double computationTimeMs) {
+    if (!displayInitialized) {
+        initDisplayLayout();
+    }
+    
+    updateBPM(bpm);
+    updateRMSSD(rmssd);
+    updateSDNN(sdnn);
+    updateStressClassification(stress_class);
+    updateComputationTime(computationTimeMs);
+}
+
 // ========== Stress Classification ==========
 void classify_stress(double rmssd, double sdnn, double bpm, double computationTimeMs) { 
     
@@ -213,6 +418,13 @@ void classify_stress(double rmssd, double sdnn, double bpm, double computationTi
 
     if (!isfinite(rmssd) || !isfinite(sdnn) || !isfinite(bpm)) {
         Serial.println("\n Cannot classify: Invalid RMSSD, SDNN, or BPM values");
+        digitalWrite(BUZZER_PIN, HIGH);
+        
+        unsigned long currentTime = millis();
+        if (currentTime - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL || !displayInitialized) {
+            displayOnTFT(bpm, rmssd, sdnn, stress_class, computationTimeMs);
+            lastDisplayUpdate = currentTime;
+        }
         return;
     }
 
@@ -234,7 +446,16 @@ void classify_stress(double rmssd, double sdnn, double bpm, double computationTi
     Serial.printf("└─ Time:  %.1f ms\n", computationTimeMs);
     
     if (stress_class == 2) {
-        Serial.println("HIGH STRESS DETECTED!");
+        Serial.println("HIGH STRESS DETECTED! Buzzer ON");
+        digitalWrite(BUZZER_PIN, LOW);
+    } else {
+        digitalWrite(BUZZER_PIN, HIGH);
+    }
+
+    unsigned long currentTime = millis();
+    if (currentTime - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL || !displayInitialized) {
+        displayOnTFT(bpm, rmssd, sdnn, stress_class, computationTimeMs);
+        lastDisplayUpdate = currentTime;
     }
 }
 
@@ -242,13 +463,24 @@ void setup() {
     Serial.begin(115200);
     delay(200);
     Serial.println("\n╔════════════════════════════════════════════╗");
-    Serial.println("║ PPG + RF Stress (MAX3010x only) ║");
+    Serial.println("║ PPG + RF Stress + ILI9341 Display ║");
     Serial.println("╚════════════════════════════════════════════╝");
+
+    initBuzzer();
+    
+    Serial.println("\nInitializing ILI9341 Display...");
+    tft.begin();
+    tft.setRotation(1);
+    tft.fillScreen(ILI9341_BLACK);
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextSize(2);
+    tft.setCursor(60, 140);
+    tft.println("Initializing...");
+    Serial.println("✓ ILI9341 Display OK (320x240)");
     
     Wire.begin(SDA_PIN, SCL_PIN);
     Wire.setClock(400000);
     delay(50);
-    Serial.printf("I2C pins -> SDA: %d, SCL: %d\n", SDA_PIN, SCL_PIN);
     
     bool ok = false;
     for (int attempt = 0; attempt < 5 && !ok; ++attempt) {
@@ -259,6 +491,11 @@ void setup() {
 
     if (!ok) {
         Serial.println("ERROR: MAX3010x not found!");
+        tft.fillScreen(ILI9341_RED);
+        tft.setTextColor(ILI9341_WHITE);
+        tft.setTextSize(2);
+        tft.setCursor(60, 140);
+        tft.println("Sensor Error!");
         while (1) delay(1000);
     }
 
@@ -270,7 +507,18 @@ void setup() {
     if (FFT_N > MAX_FFT_N) FFT_N = MAX_FFT_N;
 
     Serial.printf("\n✓ System Ready (FS=%d, window=%d, FFT=%d)\n", FS, WINDOW_NEEDED, FFT_N);
-    Serial.println("MAX3010x processing active. Place finger on sensor...");
+    Serial.println("Buzzer: Solid ON on HIGH STRESS only.");
+
+    tft.fillScreen(ILI9341_BLACK);
+    tft.fillRoundRect(50, 90, 220, 60, 8, ILI9341_DARKGREEN);
+    tft.setCursor(95, 105);
+    tft.setTextColor(ILI9341_GREEN);
+    tft.setTextSize(2);
+    tft.println("READY!");
+    tft.setCursor(50, 125);
+    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextSize(1);
+    tft.println("Place finger on sensor...");
     
     delay(2000);
 }
@@ -307,6 +555,16 @@ void loop() {
         bool fingerPresent = detectFinger(writeIndex);
         if (!fingerPresent) {
             if (!plotterMode) Serial.printf("[%lu] No Finger\n", millis());
+            digitalWrite(BUZZER_PIN, HIGH);
+
+            if (lastStressClass != -1 || lastBPM != -1) {
+                displayOnTFT(NAN, NAN, NAN, -1, NAN);
+                lastBPM = -1;
+                lastRMSSD = -1;
+                lastSDNN = -1;
+                lastStressClass = -1;
+                lastCompTime = -1;
+            }
 
             if (samplesCollected > HOP_SAMPLES) samplesCollected -= HOP_SAMPLES;
             else samplesCollected = 0;
@@ -374,8 +632,5 @@ void loop() {
         if (samplesCollected > HOP_SAMPLES) samplesCollected -= HOP_SAMPLES;
         else samplesCollected = 0;
     }
-
-    // Keep loop task cooperative to avoid watchdog resets.
-    yield();
 }
 
