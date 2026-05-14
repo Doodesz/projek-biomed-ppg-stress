@@ -225,7 +225,7 @@ void classify_stress(double rmssd, double sdnn, double bpm, double computationTi
     stress_class = model.predict(features);
     
     Serial.println("\n╔════════════════════════════════════════════╗");
-    Serial.println("║ STRESS LEVEL CLASSIFICATION ║");
+    Serial.println("║ STRESS LEVEL CLASSIFICATION                ║");
     Serial.println("╚════════════════════════════════════════════╝");
     Serial.printf("├─ RMSSD: %.2f ms\n", rmssd);
     Serial.printf("├─ SDNN:  %.2f ms\n", sdnn);
