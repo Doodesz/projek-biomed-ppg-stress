@@ -16,19 +16,25 @@ The stress output is mapped to three classes:
 - 1 = Stress Medium / Stres Sedang
 - 2 = Stress High / Stres Tinggi
 
+## Quick start
+
+Compile and upload the arduino sketch in the "2-Kode-program" folder to your ESP32.  
+
+*Note that this may not work with other microcontroller and you'll need to modify the code to adapt to your preferred microcontroller.
+
 ## Repository layout
 
-- `1_Train-model/` - Jupyter notebook used to train the Random Forest model and export Arduino-compatible code.
-- `Dataset/` - Training data used by the notebook.
-- `Model/` - Generated model header used by the embedded firmware.
-- `2_Main-program/` - Main embedded application sketch for the full stress monitoring system.
-- `aris/ppg_hr_spo2/` - Example sketch for heart rate and SpO2 monitoring.
-- `aris/StressPredictor/` - Arduino library package that wraps the ML model for reuse.
-- `Test codes/` - Experiment and validation sketches used during development.
+ `1 - Kode training model/` - Jupyter notebook used to train the Random Forest model and export Arduino-compatible code.
+ `Dataset/` - Training data used by the notebook.
+ `Model/` - Generated model header used by the embedded firmware.
+ `2 - Kode program/` - Main embedded application sketch for the full stress monitoring system.
+ `Unused/aris/ppg_hr_spo2/` - Example sketch for heart rate and SpO2 monitoring (located under `Unused/aris`).
+ `Unused/aris/StressPredictor/` - Arduino library package that wraps the ML model for reuse (located under `Unused/aris`).
+ `Test codes/` - Experiment and validation sketches used during development.
 
 ## Model and training
 
-The training notebook is [1_Train-model/train_random_forest.ipynb](1_Train-model/train_random_forest.ipynb). It trains a `RandomForestClassifier` on the dataset in [Dataset/DATA TRAINING.csv](Dataset/DATA%20TRAINING.csv) using these features:
+ The training notebook is [1 - Kode training model/train rf model.ipynb](1%20-%20Kode%20training%20model/train%20rf%20model.ipynb). It trains a `RandomForestClassifier` on the dataset in [Dataset/DATA TRAINING.csv](Dataset/DATA%20TRAINING.csv) using these features:
 
 - Start Time (s)
 - End Time (s)
@@ -41,17 +47,17 @@ The notebook also exports the model into Arduino-compatible C++ code. The saved 
 
 ## Arduino library
 
-The reusable library lives in [aris/StressPredictor/StressPredictor](aris/StressPredictor/StressPredictor). Its public API is intentionally small:
+ The reusable library lives in [Unused/aris/StressPredictor/StressPredictor](Unused/aris/StressPredictor/StressPredictor). Its public API is intentionally small:
 
 - `StressPredictor.h` exposes `StressPredictor::predict(float rmssd, float sdnn, float bpm)`.
 - `StressPredictor.cpp` forwards the three features into the exported model in the correct order.
 - `examples/BasicPrediction/BasicPrediction.ino` shows how to call the predictor from a sketch.
 
-To use the library in Arduino IDE, copy the `StressPredictor` folder into your Arduino libraries directory and open the example sketch from the IDE examples menu.
+ To use the library in Arduino IDE, copy the `StressPredictor` folder into your Arduino libraries directory and open the example sketch from the IDE examples menu. The library is provided under `Unused/aris/StressPredictor/StressPredictor` in this repository.
 
 ## Main firmware
 
-The main application is [2_Main-program/2_Main-program.ino](2_Main-program/2_Main-program.ino). It integrates:
+ The main application is [2 - Kode program/2 - Kode program.ino](2%20-%20Kode%20program/2%20-%20Kode%20program.ino). It integrates:
 
 - MAX30105 / MAX30102 PPG sensing
 - FFT and signal-processing utilities
@@ -63,15 +69,15 @@ The sketch also contains the initialization and display logic for the monitoring
 
 ## Heart rate and SpO2 example
 
-The sketch in [aris/ppg_hr_spo2/ppg_hr_spo2.ino](aris/ppg_hr_spo2/ppg_hr_spo2.ino) is a simpler sensor demo focused on BPM and SpO2. It is useful as a sensor bring-up or baseline validation sketch before running the full stress system.
+ The sketch in [Unused/aris/ppg_hr_spo2/ppg_hr_spo2.ino](Unused/aris/ppg_hr_spo2/ppg_hr_spo2.ino) is a simpler sensor demo focused on BPM and SpO2. It is useful as a sensor bring-up or baseline validation sketch before running the full stress system.
 
 ## Typical workflow
 
-1. Train or retrain the model in [1_Train-model/train_random_forest.ipynb](1_Train-model/train_random_forest.ipynb).
-2. Export the model header and place it in [Model/rf_model.h](Model/rf_model.h) and the Arduino library wrapper if needed.
-3. Build the Arduino library in [aris/StressPredictor/StressPredictor](aris/StressPredictor/StressPredictor).
-4. Upload either the example sketch or [2_Main-program/2_Main-program.ino](2_Main-program/2_Main-program.ino) to the target board.
-5. Validate the sensor readings and stress output on Serial Monitor or the TFT display.
+ 1. Train or retrain the model in  [1 - Kode training model/train rf model.ipynb](1%20-%20Kode%20training%20model/train%20rf%20model.ipynb).
+ 2. Export the model header and place it in [Model/model.h](Model/model.h) and the Arduino library wrapper if needed.
+ 3. Build the Arduino library in [Unused/aris/StressPredictor/StressPredictor](Unused/aris/StressPredictor/StressPredictor).
+ 4. Upload either the example sketch or [2 - Kode program/2 - Kode program.ino](2%20-%20Kode%20program/2%20-%20Kode%20program.ino) to the target board.
+ 5. Validate the sensor readings and stress output on Serial Monitor or the TFT display.
 
 ## Hardware notes
 
@@ -89,4 +95,3 @@ Some sketches also use OLED-based output for early sensor experiments.
 - The repository mixes training assets, library packaging, and firmware sketches, so file names are intentionally kept close to their experiment stages.
 - The stress model expects feature order to stay consistent with the notebook and exported header.
 - If you retrain the model, regenerate the exported header before rebuilding the firmware.
-

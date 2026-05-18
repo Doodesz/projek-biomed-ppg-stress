@@ -13,7 +13,7 @@
 const int SDA_PIN = 21;
 const int SCL_PIN = 22;
 
-#include "../Model/rf_model.h"
+#include "../../Model/qy/rf_model.h"
 
 // Instantiate exported model
 RFModel model;

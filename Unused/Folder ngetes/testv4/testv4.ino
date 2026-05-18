@@ -15,7 +15,7 @@ byte rrCount = 0;
 
 unsigned long lastBeat = 0;
 float lastBPM = -1.0;
-const float BPM_THRESHOLD = 20.0;
+const float BPM_THRESHOLD = 25.0;
 const byte CALIBRATION_BEATS = 5;
 float calibrationBpmSum = 0;
 byte calibrationBpmCount = 0;
@@ -95,27 +95,23 @@ void loop() {
     unsigned long now = millis();
     unsigned long rr = now - lastBeat;
     lastBeat = now;
-
-    if (rrCount < RR_SIZE) {
-      rrList[rrCount++] = rr;
-    }
-
+    
     float bpm = 60000.0 / rr;
-
+    
     if (bpm < 35 || bpm > 220) {
       Serial.println("BPM tidak masuk akal, diabaikan.");
       return;
     }
-
+    
     if (isCalibrating) {
       calibrationBpmSum += bpm;
       calibrationBpmCount++;
-
+      
       Serial.print("Kalibrasi BPM: ");
       Serial.print(calibrationBpmCount);
       Serial.print("/");
       Serial.println(CALIBRATION_BEATS);
-
+      
       if (calibrationBpmCount < CALIBRATION_BEATS) {
         return;
       }
@@ -128,11 +124,15 @@ void loop() {
       Serial.println(restingBPM, 1);
       return;
     }
-
+    
     // Check if BPM is too different from last reading (outlier detection)
     if (lastBPM >= 0 && abs(bpm - lastBPM) > BPM_THRESHOLD) {
       Serial.println("BPM melompat terlalu jauh, diabaikan.");
       return;
+    }
+
+    if (rrCount < RR_SIZE) {
+      rrList[rrCount++] = rr;
     }
 
     lastBPM = bpm;
@@ -154,6 +154,7 @@ void loop() {
 
       Serial.print(" | STRESS: ");
       Serial.println(stress);
+      Serial.println("/2 (0: Rendah, 1: Sedang, 2: Tinggi)");
 
       rrCount = 0;
     } else {
