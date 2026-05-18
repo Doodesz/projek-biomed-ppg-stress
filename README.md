@@ -18,19 +18,18 @@ The stress output is mapped to three classes:
 
 ## Quick start
 
-Compile and upload the arduino sketch in the "2-Kode-program" folder to your ESP32.  
+1. Clone repository.  
+2. Compile and upload the Arduino Sketch code in the "2-Kode-program" folder to your ESP32.  
 
 *Note that this may not work with other microcontroller and you'll need to modify the code to adapt to your preferred microcontroller.
 
 ## Repository layout
 
- `1 - Kode training model/` - Jupyter notebook used to train the Random Forest model and export Arduino-compatible code.
- `Dataset/` - Training data used by the notebook.
- `Model/` - Generated model header used by the embedded firmware.
- `2 - Kode program/` - Main embedded application sketch for the full stress monitoring system.
- `Unused/aris/ppg_hr_spo2/` - Example sketch for heart rate and SpO2 monitoring (located under `Unused/aris`).
- `Unused/aris/StressPredictor/` - Arduino library package that wraps the ML model for reuse (located under `Unused/aris`).
- `Test codes/` - Experiment and validation sketches used during development.
+ - `1 - Kode training model/` - Jupyter notebook used to train the Random Forest model and export Arduino-compatible code.
+ - `Dataset/` - Training data used by the notebook.
+ - `Model/` - Generated model header used by the embedded firmware.
+ - `2 - Kode program/` - Main embedded application sketch for the full stress monitoring system.
+ - `Unused/` - Unused folder for archiving old experimental codes and files.
 
 ## Model and training
 
@@ -45,7 +44,7 @@ Compile and upload the arduino sketch in the "2-Kode-program" folder to your ESP
 
 The notebook also exports the model into Arduino-compatible C++ code. The saved notebook output shows a test-split accuracy of 100.00%.
 
-## Arduino library
+## Arduino library (optional)
 
  The reusable library lives in [Unused/aris/StressPredictor/StressPredictor](Unused/aris/StressPredictor/StressPredictor). Its public API is intentionally small:
 
